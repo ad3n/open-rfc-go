@@ -24,8 +24,8 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/oisee/open-rfc-go/internal/cpic"
-	"github.com/oisee/open-rfc-go/internal/value"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/value"
 )
 
 // RfcFunintUnicodeRowLength is the stable prefix width of a Unicode RFC_FUNINT

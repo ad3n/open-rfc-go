@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/oisee/open-rfc-go/internal/appc"
-	"github.com/oisee/open-rfc-go/internal/transport"
+	"github.com/ad3n/open-rfc-go/internal/appc"
+	"github.com/ad3n/open-rfc-go/internal/transport"
 )
 
 // KnownGoodPingResponse is the CUT body of a real RFC_PING success response,

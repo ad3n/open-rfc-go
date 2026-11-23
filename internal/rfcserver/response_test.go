@@ -6,8 +6,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/classicrfc"
-	"github.com/oisee/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/classicrfc"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
 )
 
 func TestEncodeResponseClientReadsSuccess(t *testing.T) {

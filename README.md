@@ -350,3 +350,17 @@ Apache-2.0, a derivative work of [`open-rfc`](https://github.com/marianfoo/open-
 [`docs/provenance.md`](docs/provenance.md); contributions take a [DCO](DCO.md)
 sign-off. SAP, ABAP, and SAP S/4HANA are trademarks of SAP SE; this project is
 independent of and not endorsed by SAP SE.
+
+## Local mock server integration
+
+Module: `github.com/ad3n/open-rfc-go`. The public `mockbridge` package exposes
+the standalone RFC server adapter used by `github.com/ad3n/sap-rfc-classic-mock`.
+Before a release is available, consumers can use:
+
+```go
+require github.com/ad3n/open-rfc-go v0.0.0
+
+replace github.com/ad3n/open-rfc-go => ../open-rfc-go
+```
+
+Fork origin and mock integration changes are recorded in [provenance](docs/provenance.md#ad3n-fork-and-mock-server-integration).

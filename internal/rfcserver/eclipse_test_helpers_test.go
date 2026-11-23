@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
 )
 
 // What Eclipse puts on the wire, built by hand from the measured layout so the

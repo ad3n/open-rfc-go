@@ -14,8 +14,8 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"github.com/oisee/open-rfc-go/internal/cpic"
-	"github.com/oisee/open-rfc-go/internal/scramble"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/scramble"
 )
 
 const DefaultMaxLogonBytes = 64 << 10

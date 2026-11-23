@@ -51,8 +51,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/oisee/open-rfc-go/internal/rfcserver"
-	"github.com/oisee/open-rfc-go/pkg/adtbridge"
+	"github.com/ad3n/open-rfc-go/internal/rfcserver"
+	"github.com/ad3n/open-rfc-go/pkg/adtbridge"
 )
 
 func main() {

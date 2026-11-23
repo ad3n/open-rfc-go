@@ -21,8 +21,8 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/oisee/open-rfc-go/internal/cpic"
-	"github.com/oisee/open-rfc-go/internal/xrfc"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/xrfc"
 )
 
 // ErrRequest reports a malformed inbound CUT request.
@@ -199,6 +199,29 @@ func decodeFunctionRequest(body []byte, initialPreviousTag uint16) (Request, err
 				return req, fmt.Errorf("%w: table header out of place", ErrRequest)
 			}
 			cur.RowByteLength = int(binary.BigEndian.Uint32(f.Value[0:]))
+		case tagTableIDHeader:
+			if len(f.Value) < 8 {
+				return req, fmt.Errorf("%w: short table ID header", ErrRequest)
+			}
+			cur = nil
+			for i := range req.Tables {
+				if bytes.Equal(req.Tables[i].ID, f.Value[4:8]) {
+					cur = &req.Tables[i]
+					break
+				}
+			}
+			if cur == nil {
+				return req, fmt.Errorf("%w: unknown table ID", ErrRequest)
+			}
+		case tagTableIDEnd:
+			cur = nil
+		case cpic.TagTableContent:
+			if cur == nil {
+				return req, fmt.Errorf("%w: table row without table", ErrRequest)
+			}
+			cur.Rows = append(cur.Rows, append([]byte(nil), f.Value...))
+		case 0x0305:
+			return req, fmt.Errorf("%w: SAP LZH compressed table inputs are not supported", ErrRequest)
 		case cpic.TagTableCompr:
 			if cur == nil {
 				return req, fmt.Errorf("%w: table row without a table", ErrRequest)

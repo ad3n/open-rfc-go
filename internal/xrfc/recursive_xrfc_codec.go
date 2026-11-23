@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/oisee/open-rfc-go/internal/metadata"
-	"github.com/oisee/open-rfc-go/internal/rfctypes"
-	"github.com/oisee/open-rfc-go/internal/value"
+	"github.com/ad3n/open-rfc-go/internal/metadata"
+	"github.com/ad3n/open-rfc-go/internal/rfctypes"
+	"github.com/ad3n/open-rfc-go/internal/value"
 )
 
 func isNonFinite(f float64) bool { return math.IsInf(f, 0) || math.IsNaN(f) }

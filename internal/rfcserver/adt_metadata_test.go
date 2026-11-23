@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/classicrfc"
-	"github.com/oisee/open-rfc-go/internal/xrfc"
+	"github.com/ad3n/open-rfc-go/internal/classicrfc"
+	"github.com/ad3n/open-rfc-go/internal/xrfc"
 )
 
 // An HTTP exchange through the graph and back.

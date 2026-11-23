@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/lifecycle"
-	"github.com/oisee/open-rfc-go/internal/pool"
-	"github.com/oisee/open-rfc-go/internal/transport"
+	"github.com/ad3n/open-rfc-go/internal/lifecycle"
+	"github.com/ad3n/open-rfc-go/internal/pool"
+	"github.com/ad3n/open-rfc-go/internal/transport"
 )
 
 // TestTranslateTaxonomy checks that internal sentinels surface as this package's

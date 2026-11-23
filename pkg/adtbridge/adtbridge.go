@@ -26,7 +26,7 @@ import (
 	"net/http/cookiejar"
 	"time"
 
-	"github.com/oisee/open-rfc-go/internal/rfcserver"
+	"github.com/ad3n/open-rfc-go/internal/rfcserver"
 )
 
 // Backend is the HTTP origin the ADT requests are made against, with its

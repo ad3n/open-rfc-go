@@ -19,8 +19,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/oisee/open-rfc-go/internal/metadata"
-	"github.com/oisee/open-rfc-go/internal/value"
+	"github.com/ad3n/open-rfc-go/internal/metadata"
+	"github.com/ad3n/open-rfc-go/internal/value"
 )
 
 const (

@@ -4,7 +4,7 @@ package rfc
 import (
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
 )
 
 // TestFrameCallbackResponse checks that a framed callback response is a valid

@@ -7,9 +7,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/classicrfc"
-	"github.com/oisee/open-rfc-go/internal/cpic"
-	"github.com/oisee/open-rfc-go/internal/rfcerr"
+	"github.com/ad3n/open-rfc-go/internal/classicrfc"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/rfcerr"
 )
 
 func clientRequest(t *testing.T, fn string, imports []cpic.NamedValue, outputs []string) []byte {

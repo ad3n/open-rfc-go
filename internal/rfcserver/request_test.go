@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
 )
 
 func TestDecodeCutFunctionRequestRoundTrip(t *testing.T) {

@@ -180,3 +180,26 @@ those assertions. JS socket rejection is a close with a server-side
 `RFC authentication failed` log, not an in-band RFC exception. Demo behavior
 remains the existing Go behavior. This change does not add OSG's cross-connection
 lock adoption or backend logoff on disconnect.
+
+## ad3n fork and mock server integration
+
+The Go module is `github.com/ad3n/open-rfc-go`, forked from
+`oisee/open-rfc-go` at `61d450713a040bc0afc39c4994be6bbfcba5bd79`.
+Existing copyright, license notices, and port provenance remain applicable.
+The following changes were developed for `ad3n/sap-rfc-classic-mock` and
+moved back into this repository:
+
+- `mockbridge/bridge.go`: public adapter exposing dispatcher, request/response
+  types, standalone serving, and DDIC metadata encoding to the mock server.
+- `internal/rfcserver/mock_adapter.go`: exposes existing DFIES and X030L encoders.
+- `internal/rfcserver/request.go`: selects native input tables by numbered ID,
+  preserves row bytes, resets the current table at the end marker, and rejects
+  unsupported LZH-compressed input explicitly. This is a local divergence.
+- `internal/rfcserver/mock_adapter_test.go`: regression for two numbered tables
+  whose wire order differs from their declaration order.
+
+Evidence: native SAP NetWeaver RFC SDK calls through gonwrfc against the mock
+server, including scalar, STRUCTURE, and TABLE calls. This is interoperability
+testing, not SAP certification or evidence for every SAP wire variant.
+The SDK remains a consumer-side dependency; this module uses the standard
+library only. Original struct layouts are retained during module migration.

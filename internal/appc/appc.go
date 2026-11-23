@@ -31,7 +31,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/oisee/open-rfc-go/wire"
+	"github.com/ad3n/open-rfc-go/wire"
 )
 
 const (

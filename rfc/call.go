@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/oisee/open-rfc-go/internal/classicrfc"
-	"github.com/oisee/open-rfc-go/internal/cpic"
-	"github.com/oisee/open-rfc-go/internal/lifecycle"
-	"github.com/oisee/open-rfc-go/internal/metadata"
-	"github.com/oisee/open-rfc-go/internal/rfctypes"
-	"github.com/oisee/open-rfc-go/internal/structure"
-	"github.com/oisee/open-rfc-go/internal/xrfc"
+	"github.com/ad3n/open-rfc-go/internal/classicrfc"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/lifecycle"
+	"github.com/ad3n/open-rfc-go/internal/metadata"
+	"github.com/ad3n/open-rfc-go/internal/rfctypes"
+	"github.com/ad3n/open-rfc-go/internal/structure"
+	"github.com/ad3n/open-rfc-go/internal/xrfc"
 )
 
 // Params is the input to a call: parameter name → native Go value. A scalar is

@@ -15,7 +15,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/oisee/open-rfc-go/internal/rfcserver"
+	"github.com/ad3n/open-rfc-go/internal/rfcserver"
 )
 
 func main() {

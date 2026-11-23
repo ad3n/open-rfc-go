@@ -5,8 +5,8 @@ package rfc
 import (
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/classicrfc"
-	"github.com/oisee/open-rfc-go/internal/rfctypes"
+	"github.com/ad3n/open-rfc-go/internal/classicrfc"
+	"github.com/ad3n/open-rfc-go/internal/rfctypes"
 )
 
 // The two metadata sources report a character field's length in different units:

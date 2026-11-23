@@ -12,10 +12,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/bxml"
-	"github.com/oisee/open-rfc-go/internal/cpic"
-	"github.com/oisee/open-rfc-go/internal/rfcerr"
-	"github.com/oisee/open-rfc-go/internal/xrfc"
+	"github.com/ad3n/open-rfc-go/internal/bxml"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/rfcerr"
+	"github.com/ad3n/open-rfc-go/internal/xrfc"
 )
 
 // Exercise admission through RFC encoding and dispatch, including the exception

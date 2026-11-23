@@ -5,7 +5,7 @@ package rfcserver
 import (
 	"testing"
 
-	"github.com/oisee/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
 )
 
 // Eclipse's framing is the CUT framing with the first predecessor left off, so

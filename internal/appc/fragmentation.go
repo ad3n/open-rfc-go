@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/oisee/open-rfc-go/wire"
+	"github.com/ad3n/open-rfc-go/wire"
 )
 
 // AsyncDataInfo is decoded 32-byte F_ASEND_DATA operation information.

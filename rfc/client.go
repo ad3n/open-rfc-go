@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/oisee/open-rfc-go/internal/client"
-	"github.com/oisee/open-rfc-go/internal/lifecycle"
-	"github.com/oisee/open-rfc-go/internal/metadata"
-	"github.com/oisee/open-rfc-go/internal/pool"
-	"github.com/oisee/open-rfc-go/internal/rfctypes"
-	"github.com/oisee/open-rfc-go/internal/saprouter"
-	"github.com/oisee/open-rfc-go/internal/socks5"
+	"github.com/ad3n/open-rfc-go/internal/client"
+	"github.com/ad3n/open-rfc-go/internal/lifecycle"
+	"github.com/ad3n/open-rfc-go/internal/metadata"
+	"github.com/ad3n/open-rfc-go/internal/pool"
+	"github.com/ad3n/open-rfc-go/internal/rfctypes"
+	"github.com/ad3n/open-rfc-go/internal/saprouter"
+	"github.com/ad3n/open-rfc-go/internal/socks5"
 )
 
 // SOCKS5Options configures a SOCKS5 proxy in front of the connection. Set

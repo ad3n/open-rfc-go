@@ -16,10 +16,10 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/oisee/open-rfc-go/internal/classicrfc"
-	"github.com/oisee/open-rfc-go/internal/cpic"
-	"github.com/oisee/open-rfc-go/internal/rfctypes"
-	"github.com/oisee/open-rfc-go/internal/structure"
+	"github.com/ad3n/open-rfc-go/internal/classicrfc"
+	"github.com/ad3n/open-rfc-go/internal/cpic"
+	"github.com/ad3n/open-rfc-go/internal/rfctypes"
+	"github.com/ad3n/open-rfc-go/internal/structure"
 )
 
 const (

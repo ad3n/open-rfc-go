@@ -1,3 +1,3 @@
-module github.com/oisee/open-rfc-go
+module github.com/ad3n/open-rfc-go
 
 go 1.26

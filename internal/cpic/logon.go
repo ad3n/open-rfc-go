@@ -10,8 +10,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/oisee/open-rfc-go/internal/rfcerr"
-	"github.com/oisee/open-rfc-go/internal/scramble"
+	"github.com/ad3n/open-rfc-go/internal/rfcerr"
+	"github.com/ad3n/open-rfc-go/internal/scramble"
 )
 
 func mustHex(s string) []byte {

@@ -12,7 +12,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/oisee/open-rfc-go/internal/transport"
+	"github.com/ad3n/open-rfc-go/internal/transport"
 )
 
 // scriptStep is one step of a function's recorded reply script: a frame to send

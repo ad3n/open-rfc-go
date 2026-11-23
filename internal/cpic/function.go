@@ -11,8 +11,8 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/oisee/open-rfc-go/internal/appc"
-	"github.com/oisee/open-rfc-go/internal/rfcerr"
+	"github.com/ad3n/open-rfc-go/internal/appc"
+	"github.com/ad3n/open-rfc-go/internal/rfcerr"
 )
 
 var (

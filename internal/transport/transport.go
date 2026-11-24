@@ -115,8 +115,14 @@ func DialWith(ctx context.Context, network, addr string, opts DialOptions) (*Tra
 
 // New adopts an already-connected stream (for example a routed socket).
 func New(conn net.Conn, opts Options) *Transport {
-	dec, _ := ni.NewFrameDecoder(opts.maxPayload())
-	return &Transport{conn: conn, dec: dec, chunk: make([]byte, 32*1024), opts: opts}
+	maxPayload := opts.maxPayload()
+	dec, _ := ni.NewFrameDecoder(maxPayload)
+	readSize := 32 * 1024
+	if maxPayload < readSize-4 {
+		readSize = maxPayload + 4
+	}
+
+	return &Transport{conn: conn, dec: dec, chunk: make([]byte, readSize), opts: opts}
 }
 
 // Send writes one NI record carrying payload.

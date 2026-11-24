@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ad3n/open-rfc-go/internal/classicrfc"
+	"github.com/ad3n/open-rfc-go/internal/structure"
 	"github.com/ad3n/open-rfc-go/internal/xrfc"
 )
 
@@ -84,8 +85,18 @@ func (r callResponse) tableReader(key string) (func(uint, tableVisitor) error, e
 		}
 
 		return func(limit uint, visit tableVisitor) error {
+			var codec *structure.FixedCodec
 			return classic.Visit(limit, func(total uint, raw []byte) error {
-				row, err := decodeFixedRow(def, raw)
+				if codec == nil {
+					compiled, err := structure.NewFixedCodec(def)
+					if err != nil {
+						return fmt.Errorf("%w: %s: %w", ErrProtocol, key, err)
+					}
+
+					codec = &compiled
+				}
+
+				row, err := codec.Decode(padTrailingFill(def, raw))
 				if err != nil {
 					return fmt.Errorf("%w: %s: %w", ErrProtocol, key, err)
 				}

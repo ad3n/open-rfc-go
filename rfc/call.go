@@ -186,14 +186,11 @@ func encodeCall(iface metadata.RfcFunctionInterface, in Params, resolve structRe
 				input.XrfcParameters = append(input.XrfcParameters, cpic.NamedValue{Name: p.ParameterName, Value: b})
 				continue
 			}
-			table := cpic.Table{Name: p.ParameterName, RowByteLength: int(def.ByteLength)}
-			for i, row := range rows {
-				b, err := structure.Encode(def, row)
-				if err != nil {
-					return input, fmt.Errorf("%w: %s row %d: %v", ErrProtocol, p.ParameterName, i, err)
-				}
-				table.Rows = append(table.Rows, b)
+			table, err := encodeFixedTable(p.ParameterName, def, rows)
+			if err != nil {
+				return input, err
 			}
+
 			input.Tables = append(input.Tables, table)
 		case "I", "C":
 			// A table-typed import/changing parameter (EXID 'h') carries rows
@@ -216,14 +213,11 @@ func encodeCall(iface metadata.RfcFunctionInterface, in Params, resolve structRe
 					input.XrfcParameters = append(input.XrfcParameters, cpic.NamedValue{Name: p.ParameterName, Value: b})
 					continue
 				}
-				table := cpic.Table{Name: p.ParameterName, RowByteLength: int(def.ByteLength)}
-				for i, row := range rows {
-					b, err := structure.Encode(def, row)
-					if err != nil {
-						return input, fmt.Errorf("%w: %s row %d: %v", ErrProtocol, p.ParameterName, i, err)
-					}
-					table.Rows = append(table.Rows, b)
+				table, err := encodeFixedTable(p.ParameterName, def, rows)
+				if err != nil {
+					return input, err
 				}
+
 				input.Tables = append(input.Tables, table)
 				continue
 			}
@@ -257,6 +251,30 @@ func encodeCall(iface metadata.RfcFunctionInterface, in Params, resolve structRe
 		}
 	}
 	return input, nil
+}
+
+func encodeFixedTable(name string, def rfctypes.RfcStructureDefinition, rows []map[string]any) (cpic.Table, error) {
+	table := cpic.Table{Name: name, RowByteLength: int(def.ByteLength)}
+	if len(rows) == 0 {
+		return table, nil
+	}
+
+	codec, err := structure.NewFixedCodec(def)
+	if err != nil {
+		return cpic.Table{}, fmt.Errorf("%w: %s row 0: %v", ErrProtocol, name, err)
+	}
+
+	table.Rows = make([][]byte, len(rows))
+	for i, row := range rows {
+		encoded, err := codec.Encode(row)
+		if err != nil {
+			return cpic.Table{}, fmt.Errorf("%w: %s row %d: %v", ErrProtocol, name, i, err)
+		}
+
+		table.Rows[i] = encoded
+	}
+
+	return table, nil
 }
 
 func encodeImport(p classicrfc.FunintParameter, val any, resolve structResolver) ([]byte, error) {
@@ -401,8 +419,18 @@ func decodeResult(iface metadata.RfcFunctionInterface, fields []cpic.Field, reso
 			if err != nil {
 				return Result{}, err
 			}
+			if len(t.Rows) == 0 {
+				out.tables[t.Name] = rows
+				continue
+			}
+
+			codec, err := structure.NewFixedCodec(def)
+			if err != nil {
+				return Result{}, fmt.Errorf("%w: %s row 0: %v", ErrProtocol, t.Name, err)
+			}
+
 			for i, row := range t.Rows {
-				m, err := decodeFixedRow(def, row)
+				m, err := codec.Decode(padTrailingFill(def, row))
 				if err != nil {
 					return Result{}, fmt.Errorf("%w: %s row %d: %v", ErrProtocol, t.Name, i, err)
 				}

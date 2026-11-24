@@ -40,6 +40,12 @@ var ErrStructure = errors.New("structure: classic structure")
 
 var numericDigits = regexp.MustCompile(`^\d*$`)
 
+type FixedCodec struct {
+	def   rfctypes.RfcStructureDefinition
+	paths []string
+	names map[string]bool
+}
+
 // SnapshotDefinition validates fixed-structure geometry before value allocation.
 func SnapshotDefinition(def rfctypes.RfcStructureDefinition, requestedName string) (rfctypes.RfcStructureDefinition, error) {
 	var zero rfctypes.RfcStructureDefinition
@@ -67,12 +73,11 @@ func SnapshotDefinition(def rfctypes.RfcStructureDefinition, requestedName strin
 			field.Position != int32(index+1) || field.Offset < previousEnd || field.InternalLength < 0 || field.Decimals < 0 {
 			return zero, fmt.Errorf("%w: %s structure field %d has invalid geometry", ErrStructure, def.Name, index)
 		}
-		end := field.Offset + field.InternalLength
-		if end > def.ByteLength {
+		if field.InternalLength > def.ByteLength-field.Offset {
 			return zero, fmt.Errorf("%w: %s.%s exceeds the structure byteLength", ErrStructure, def.Name, field.FieldName)
 		}
 		names[field.FieldName] = true
-		previousEnd = end
+		previousEnd = field.Offset + field.InternalLength
 		fields = append(fields, field)
 	}
 	return rfctypes.RfcStructureDefinition{Name: def.Name, ByteLength: def.ByteLength, Fields: fields}, nil
@@ -168,15 +173,30 @@ func HasDynamicFields(def rfctypes.RfcStructureDefinition) (bool, error) {
 	return false, nil
 }
 
-func assertFixed(def rfctypes.RfcStructureDefinition) error {
-	dynamic, err := HasDynamicFields(def)
+func NewFixedCodec(def rfctypes.RfcStructureDefinition) (FixedCodec, error) {
+	normalized, err := SnapshotDefinition(def, "")
 	if err != nil {
-		return err
+		return FixedCodec{}, err
 	}
+
+	codec := FixedCodec{def: normalized, paths: make([]string, len(normalized.Fields)), names: make(map[string]bool, len(normalized.Fields))}
+	dynamic := false
+	for i, field := range normalized.Fields {
+		path := fieldPath(normalized, field)
+		if err := assertFieldCodec(field, path); err != nil {
+			return FixedCodec{}, err
+		}
+
+		codec.paths[i] = path
+		codec.names[field.FieldName] = true
+		dynamic = dynamic || field.Exid == "g" || field.Exid == "y"
+	}
+
 	if dynamic {
-		return fmt.Errorf("%w: %s contains STRING/XSTRING fields and requires xRFC XML serialization", ErrStructure, def.Name)
+		return FixedCodec{}, fmt.Errorf("%w: %s contains STRING/XSTRING fields and requires xRFC XML serialization", ErrStructure, normalized.Name)
 	}
-	return nil
+
+	return codec, nil
 }
 
 func asInt(v any) (int64, bool) {
@@ -253,8 +273,7 @@ func initialValue(field rfctypes.RfcStructureField, path string) (any, error) {
 	}
 }
 
-func writeValue(target []byte, def rfctypes.RfcStructureDefinition, field rfctypes.RfcStructureField, v any) error {
-	path := fieldPath(def, field)
+func writeValue(target []byte, field rfctypes.RfcStructureField, path string, v any) error {
 	offset := int(field.Offset)
 	if value.IsClassicTemporalExid(field.Exid) {
 		s, ok := v.(string)
@@ -392,8 +411,7 @@ func writeValue(target []byte, def rfctypes.RfcStructureDefinition, field rfctyp
 	return nil
 }
 
-func readValue(source []byte, def rfctypes.RfcStructureDefinition, field rfctypes.RfcStructureField) (any, error) {
-	path := fieldPath(def, field)
+func readValue(source []byte, field rfctypes.RfcStructureField, path string) (any, error) {
 	seg := source[field.Offset : field.Offset+field.InternalLength]
 	if value.IsClassicTemporalExid(field.Exid) {
 		return value.DecodeClassicTemporal(value.TemporalExid(field.Exid), seg, path)
@@ -446,78 +464,88 @@ func readValue(source []byte, def rfctypes.RfcStructureDefinition, field rfctype
 	}
 }
 
-// Encode encodes one fixed-layout classic Unicode structure.
 func Encode(def rfctypes.RfcStructureDefinition, input map[string]any) ([]byte, error) {
-	normalized, err := ValidateCodec(def, "")
+	codec, err := NewFixedCodec(def)
 	if err != nil {
 		return nil, err
 	}
-	if err := assertFixed(normalized); err != nil {
-		return nil, err
-	}
-	fields := map[string]bool{}
-	for _, f := range normalized.Fields {
-		fields[f.FieldName] = true
-	}
+
+	return codec.Encode(input)
+}
+
+func (c FixedCodec) Encode(input map[string]any) ([]byte, error) {
 	for name := range input {
-		if !fields[name] {
-			return nil, fmt.Errorf("%w: %s contains unknown field %s", ErrStructure, normalized.Name, name)
+		if !c.names[name] {
+			return nil, fmt.Errorf("%w: %s contains unknown field %s", ErrStructure, c.def.Name, name)
 		}
 	}
-	result := make([]byte, normalized.ByteLength)
-	for index, field := range normalized.Fields {
+
+	result := make([]byte, c.def.ByteLength)
+	for i, field := range c.def.Fields {
+		path := c.paths[i]
 		v, supplied := input[field.FieldName]
 		if !supplied {
-			v, err = initialValue(field, fieldPath(normalized, field))
+			var err error
+			v, err = initialValue(field, path)
 			if err != nil {
 				return nil, err
 			}
 		}
-		if err := writeValue(result, normalized, field, v); err != nil {
+
+		if err := writeValue(result, field, path, v); err != nil {
 			return nil, err
 		}
-		if field.Exid == "C" || field.Exid == "N" {
-			fieldEnd := int(field.Offset + field.InternalLength)
-			nextOffset := int(normalized.ByteLength)
-			if index+1 < len(normalized.Fields) {
-				nextOffset = int(normalized.Fields[index+1].Offset)
-			}
-			paddingLength := nextOffset - fieldEnd
-			if paddingLength&1 != 0 {
-				return nil, fmt.Errorf("%w: %s has an odd Unicode alignment tail", ErrStructure, fieldPath(normalized, field))
-			}
-			if paddingLength > 0 {
-				fill := " "
-				if field.Exid == "N" {
-					fill = "0"
-				}
-				copy(result[fieldEnd:], utf16le(strings.Repeat(fill, paddingLength/2)))
-			}
+
+		if field.Exid != "C" && field.Exid != "N" {
+			continue
+		}
+
+		fieldEnd := int(field.Offset + field.InternalLength)
+		nextOffset := int(c.def.ByteLength)
+		if i+1 < len(c.def.Fields) {
+			nextOffset = int(c.def.Fields[i+1].Offset)
+		}
+
+		if (nextOffset-fieldEnd)&1 != 0 {
+			return nil, fmt.Errorf("%w: %s has an odd Unicode alignment tail", ErrStructure, path)
+		}
+
+		fill := byte(' ')
+		if field.Exid == "N" {
+			fill = '0'
+		}
+
+		for offset := fieldEnd; offset < nextOffset; offset += 2 {
+			result[offset] = fill
 		}
 	}
+
 	return result, nil
 }
 
-// Decode decodes one fixed-layout classic Unicode structure into plain values.
-func Decode(def rfctypes.RfcStructureDefinition, value_ []byte) (map[string]any, error) {
-	normalized, err := ValidateCodec(def, "")
+func Decode(def rfctypes.RfcStructureDefinition, bytes []byte) (map[string]any, error) {
+	codec, err := NewFixedCodec(def)
 	if err != nil {
 		return nil, err
 	}
-	if err := assertFixed(normalized); err != nil {
-		return nil, err
+
+	return codec.Decode(bytes)
+}
+
+func (c FixedCodec) Decode(bytes []byte) (map[string]any, error) {
+	if len(bytes) != int(c.def.ByteLength) {
+		return nil, fmt.Errorf("%w: %s structure must contain exactly %d bytes; received %d", ErrStructure, c.def.Name, c.def.ByteLength, len(bytes))
 	}
-	if len(value_) != int(normalized.ByteLength) {
-		return nil, fmt.Errorf("%w: %s structure must contain exactly %d bytes; received %d", ErrStructure, normalized.Name, normalized.ByteLength, len(value_))
-	}
-	source := append([]byte(nil), value_...)
-	result := make(map[string]any, len(normalized.Fields))
-	for _, field := range normalized.Fields {
-		v, err := readValue(source, normalized, field)
+
+	result := make(map[string]any, len(c.def.Fields))
+	for i, field := range c.def.Fields {
+		v, err := readValue(bytes, field, c.paths[i])
 		if err != nil {
 			return nil, err
 		}
+
 		result[field.FieldName] = v
 	}
+
 	return result, nil
 }

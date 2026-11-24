@@ -68,13 +68,14 @@ func coerceParamValue(p classicrfc.FunintParameter, val any, resolve structResol
 		if err != nil {
 			return nil, err
 		}
-		out := make([]map[string]any, 0, len(rows))
+		fields := indexStructureFields(def)
+		out := make([]map[string]any, len(rows))
 		for i, r := range rows {
-			m, err := coerceStruct(def, r, resolve)
+			m, err := coerceStruct(fields, r)
 			if err != nil {
 				return nil, fmt.Errorf("row %d: %w", i, err)
 			}
-			out = append(out, m)
+			out[i] = m
 		}
 		return out, nil
 	case isStructureExid(p.Exid):
@@ -82,28 +83,34 @@ func coerceParamValue(p classicrfc.FunintParameter, val any, resolve structResol
 		if err != nil {
 			return nil, err
 		}
-		return coerceStruct(def, val, resolve)
+		return coerceStruct(indexStructureFields(def), val)
 	}
 	return coerceScalar(p.Exid, val)
 }
 
-func coerceStruct(def rfctypes.RfcStructureDefinition, val any, resolve structResolver) (map[string]any, error) {
+func indexStructureFields(def rfctypes.RfcStructureDefinition) map[string]string {
+	fields := make(map[string]string, len(def.Fields))
+	for _, field := range def.Fields {
+		fields[field.FieldName] = field.Exid
+	}
+
+	return fields
+}
+
+func coerceStruct(fields map[string]string, val any) (map[string]any, error) {
 	m, ok := val.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("%w: expects an object", ErrInvalidParameter)
 	}
-	byField := make(map[string]rfctypes.RfcStructureField, len(def.Fields))
-	for _, f := range def.Fields {
-		byField[f.FieldName] = f
-	}
+
 	out := make(map[string]any, len(m))
 	for k, v := range m {
-		f, ok := byField[k]
+		exid, ok := fields[k]
 		if !ok {
 			out[k] = v
 			continue
 		}
-		cv, err := coerceScalar(f.Exid, v)
+		cv, err := coerceScalar(exid, v)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", k, err)
 		}

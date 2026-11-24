@@ -20,9 +20,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/user"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,8 +37,10 @@ import (
 	"github.com/ad3n/open-rfc-go/internal/transport"
 )
 
-// ErrSession reports a session-level protocol or state error.
-var ErrSession = errors.New("client: cpic session")
+var (
+	ErrSession       = errors.New("client: cpic session")
+	ErrLogonRejected = errors.New("client: logon rejected")
+)
 
 // Transport is the byte-record transport a session drives.
 type Transport interface {
@@ -154,7 +158,7 @@ func Open(ctx context.Context, opts SessionOptions) (*Session, error) {
 	tr := opts.Transport
 	if tr == nil {
 		transportOpts := transport.Options{ReadTimeout: opTimeout, WriteTimeout: opTimeout}
-		addr := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
+		addr := net.JoinHostPort(opts.Host, strconv.Itoa(opts.Port))
 		var dialed *transport.Transport
 		var err error
 		if opts.Router != nil || opts.Proxy != nil {
@@ -367,12 +371,12 @@ func (s *Session) LogonAndPing(ctx context.Context, opts LogonOptions) error {
 	}
 	if !decoded.Success {
 		if decoded.Rejection != nil && decoded.Rejection.Text != "" {
-			return fmt.Errorf("%w: SAP rejected logon: %s", ErrSession, decoded.Rejection.Text)
+			return fmt.Errorf("%w: %w: %s", ErrSession, ErrLogonRejected, decoded.Rejection.Text)
 		}
 		if decoded.Status != nil {
-			return fmt.Errorf("%w: SAP rejected logon with status %d", ErrSession, *decoded.Status)
+			return fmt.Errorf("%w: %w with status %d", ErrSession, ErrLogonRejected, *decoded.Status)
 		}
-		return fmt.Errorf("%w: SAP rejected the initial CPIC logon", ErrSession)
+		return fmt.Errorf("%w: %w", ErrSession, ErrLogonRejected)
 	}
 	s.cpicSessionID = sessionID
 	s.authenticated = true

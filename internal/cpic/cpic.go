@@ -195,9 +195,9 @@ func failStructure(rule, msg string, fields []StructuralField) error {
 }
 
 var (
-	digits3   = regexp.MustCompile(`^\d{3}$`)
-	oneLetter = regexp.MustCompile(`^[A-Za-z]$`)
-	asciiRE   = regexp.MustCompile(`^[\x20-\x7e]*$`)
+	digits3        = regexp.MustCompile(`^\d{3}$`)
+	sapLanguageKey = regexp.MustCompile(`^[A-Za-z0-9]$`)
+	asciiRE        = regexp.MustCompile(`^[\x20-\x7e]*$`)
 )
 
 func tagText(tag uint16) string { return fmt.Sprintf("0x%04x", tag) }

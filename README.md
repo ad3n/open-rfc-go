@@ -202,6 +202,17 @@ on — `vsp rfc` and `vsp rfc debug` are this package, and the ABAP debugger bel
 is driven through it. A library that one real tool depends on is a library that
 has had its corners knocked off.
 
+For logon-group routing, set
+`Destination.MessageServer` to `&rfc.MessageServerOptions{Host: "ms.example", Service: "3600", SystemID: "DEV", Group: "PUBLIC"}`.
+Omit the direct gateway fields when using a message server. The client resolves
+the group for each new physical RFC session. An empty `Service` resolves
+`sapms<SystemID>` using the system's TCP services table.
+
+`Client.CallTable(ctx, functionName, params, tableName, limit, visit)` delivers
+only the named output table to the visitor. A zero limit visits every row.
+The visitor receives the original row count and owns each row. The RFC response
+is buffered while the table's Go rows are decoded individually.
+
 ### Debug ABAP over RFC
 
 A pinned conversation is a stable ABAP session, which

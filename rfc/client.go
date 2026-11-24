@@ -4,6 +4,7 @@ package rfc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -11,10 +12,12 @@ import (
 	"github.com/ad3n/open-rfc-go/internal/client"
 	"github.com/ad3n/open-rfc-go/internal/lifecycle"
 	"github.com/ad3n/open-rfc-go/internal/metadata"
+	"github.com/ad3n/open-rfc-go/internal/msgserver"
 	"github.com/ad3n/open-rfc-go/internal/pool"
 	"github.com/ad3n/open-rfc-go/internal/rfctypes"
 	"github.com/ad3n/open-rfc-go/internal/saprouter"
 	"github.com/ad3n/open-rfc-go/internal/socks5"
+	"github.com/ad3n/open-rfc-go/internal/transport"
 )
 
 // SOCKS5Options configures a SOCKS5 proxy in front of the connection. Set
@@ -35,13 +38,22 @@ type PoolConfig struct {
 	AcquireTimeout time.Duration
 }
 
+// MessageServerOptions selects a direct RFC gateway through a SAP logon group.
+type MessageServerOptions struct {
+	Host     string
+	Service  string // TCP port or service name; defaults to sapms<SystemID>
+	SystemID string
+	Group    string
+}
+
 // Destination describes how to reach and log on to a system.
 type Destination struct {
-	Host     string // gateway host
-	Port     int    // gateway port (e.g. 3300 for instance 00)
-	Client   string // ABAP client, e.g. "001"
-	User     string
-	Password string
+	Host          string // gateway host
+	Port          int    // gateway port (e.g. 3300 for instance 00)
+	Client        string // ABAP client, e.g. "001"
+	User          string
+	Password      string
+	MessageServer *MessageServerOptions
 	// Ticket logs on with an SAP logon ticket (MYSAPSSO2) instead of a password,
 	// for systems where a browser single sign-on is the only credential to hand.
 	// Any wire form is accepted; see internal/cpic NormalizeTicket.
@@ -76,30 +88,28 @@ type Client struct {
 // Open dials the destination, establishes a pool of authenticated sessions, and
 // returns a ready client. It fails fast by opening one session eagerly.
 func Open(ctx context.Context, d Destination) (*Client, error) {
-	if d.Host == "" || d.User == "" {
-		return nil, fmt.Errorf("%w: Host and User are required", ErrProtocol)
+	if d.User == "" || (d.MessageServer == nil && d.Host == "") {
+		return nil, fmt.Errorf("%w: %w: a destination and user are required", ErrProtocol, ErrInvalidParameter)
 	}
+
+	if d.MessageServer != nil {
+		if d.Host != "" || d.Port != 0 || d.Service != "" {
+			return nil, fmt.Errorf("%w: choose either a direct gateway or a message server", ErrInvalidParameter)
+		}
+
+		options := *d.MessageServer
+		d.MessageServer = &options
+	}
+
 	openSession := func(ctx context.Context) (*lifecycle.Managed, error) {
-		sopts := client.SessionOptions{
-			Host:                     d.Host,
-			Port:                     d.Port,
-			ApplicationServerService: d.Service,
-			ProgramName:              d.ProgramName,
-			OperationTimeout:         d.OperationTimeout,
+		sopts, err := sessionOptions(ctx, d)
+		if err != nil {
+			return nil, err
 		}
-		if d.Router != "" {
-			route, err := saprouter.CompleteRoute(d.Router, d.Host, d.Port)
-			if err != nil {
-				return nil, fmt.Errorf("%w: %v", ErrProtocol, err)
-			}
-			sopts.Router = route
-		}
-		if d.SOCKS5 != nil {
-			sopts.Proxy = socks5Dialer(d.SOCKS5)
-		}
+
 		sess, err := client.Open(ctx, sopts)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrTransport, err)
+			return nil, fmt.Errorf("%w: %w", ErrTransport, err)
 		}
 		if err := sess.LogonAndPing(ctx, client.LogonOptions{
 			Client:   d.Client,
@@ -109,7 +119,11 @@ func Open(ctx context.Context, d Destination) (*Client, error) {
 			Language: d.Language,
 		}); err != nil {
 			_ = sess.Close()
-			return nil, fmt.Errorf("%w: %v", ErrLogonRejected, err)
+			if errors.Is(err, client.ErrLogonRejected) {
+				return nil, fmt.Errorf("%w: %w", ErrLogonRejected, err)
+			}
+
+			return nil, fmt.Errorf("%w: %w", ErrTransport, err)
 		}
 		return lifecycle.Wrap(sess), nil
 	}
@@ -140,6 +154,47 @@ func Open(ctx context.Context, d Destination) (*Client, error) {
 	}
 	lease.Release()
 	return c, nil
+}
+
+func sessionOptions(ctx context.Context, d Destination) (client.SessionOptions, error) {
+	host, port, service := d.Host, d.Port, d.Service
+	var proxy transport.ContextDialer
+	if d.SOCKS5 != nil {
+		proxy = socks5Dialer(d.SOCKS5)
+	}
+
+	if d.MessageServer != nil {
+		ms := *d.MessageServer
+		target, err := msgserver.Resolve(ctx, msgserver.Options{
+			Host: ms.Host, Service: ms.Service, SystemID: ms.SystemID, Group: ms.Group,
+			Router: d.Router, Proxy: proxy, Timeout: d.OperationTimeout,
+		})
+		if errors.Is(err, msgserver.ErrOptions) {
+			return client.SessionOptions{}, fmt.Errorf("%w: %w", ErrInvalidParameter, err)
+		}
+
+		if err != nil {
+			return client.SessionOptions{}, fmt.Errorf("%w: %w", ErrTransport, err)
+		}
+
+		host, port = target.Host, target.GatewayPort
+		service = fmt.Sprintf("sapdp%02d", target.DispatcherPort%100)
+	}
+
+	options := client.SessionOptions{
+		Host: host, Port: port, ApplicationServerService: service, Proxy: proxy,
+		ProgramName: d.ProgramName, OperationTimeout: d.OperationTimeout,
+	}
+	if d.Router != "" {
+		route, err := saprouter.CompleteRoute(d.Router, host, port)
+		if err != nil {
+			return client.SessionOptions{}, fmt.Errorf("%w: %w", ErrProtocol, err)
+		}
+
+		options.Router = route
+	}
+
+	return options, nil
 }
 
 func socks5Dialer(o *SOCKS5Options) *socks5.Dialer {
@@ -206,7 +261,7 @@ func (c *Client) functionInterfaceOn(ctx context.Context, sess *lifecycle.Manage
 	}
 	res, err := sess.CallRaw(ctx, req)
 	if err != nil {
-		return metadata.RfcFunctionInterface{}, fmt.Errorf("%w: %v", ErrTransport, err)
+		return metadata.RfcFunctionInterface{}, fmt.Errorf("%w: %w", ErrTransport, err)
 	}
 	if exc := exceptionFromEnvelope(res.Envelope); exc != nil {
 		return metadata.RfcFunctionInterface{}, exc
@@ -231,7 +286,7 @@ func (c *Client) structureDefinitionOn(ctx context.Context, sess *lifecycle.Mana
 	}
 	res, err := sess.CallRaw(ctx, req)
 	if err != nil {
-		return rfctypes.RfcStructureDefinition{}, fmt.Errorf("%w: %v", ErrTransport, err)
+		return rfctypes.RfcStructureDefinition{}, fmt.Errorf("%w: %w", ErrTransport, err)
 	}
 	if exc := exceptionFromEnvelope(res.Envelope); exc != nil {
 		return rfctypes.RfcStructureDefinition{}, exc

@@ -898,38 +898,51 @@ func parseTableLine(graph metadata.Graph, node metadata.TypeNode, parser *rparse
 }
 
 func parseTable(graph metadata.Graph, node metadata.TypeNode, parser *rparser, limits normalizedRecursiveLimits, depth int, path string) ([]any, error) {
-	if depth > limits.maxDepth {
-		return nil, fmt.Errorf("%w: %s exceeds recursive xRFC depth %d", ErrRange, path, limits.maxDepth)
-	}
-	if err := parser.node(path); err != nil {
+	rows := []any{}
+	if err := walkTable(graph, node, parser, limits, depth, path, func(_ uint, row any) error {
+		rows = append(rows, row)
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	rows := []any{}
-	for {
+
+	return rows, nil
+}
+
+func walkTable(graph metadata.Graph, node metadata.TypeNode, parser *rparser, limits normalizedRecursiveLimits, depth int, path string, visit func(uint, any) error) error {
+	if depth > limits.maxDepth {
+		return fmt.Errorf("%w: %s exceeds recursive xRFC depth %d", ErrRange, path, limits.maxDepth)
+	}
+	if err := parser.node(path); err != nil {
+		return err
+	}
+	for index := uint(0); ; index++ {
 		starts, err := parser.starts("item", false)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if !starts {
 			break
 		}
-		rowPath := fmt.Sprintf("%s[%d]", path, len(rows))
+		rowPath := fmt.Sprintf("%s[%d]", path, index)
 		if err := parser.row(rowPath); err != nil {
-			return nil, err
+			return err
 		}
 		if err := parser.open("item", rowPath); err != nil {
-			return nil, err
+			return err
 		}
 		row, err := parseTableLine(graph, node, parser, limits, depth, rowPath)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		rows = append(rows, row)
 		if err := parser.close("item", rowPath); err != nil {
-			return nil, err
+			return err
+		}
+		if err := visit(index, row); err != nil {
+			return err
 		}
 	}
-	return rows, nil
+	return nil
 }
 
 // DecodeRecursiveParameter strictly decodes one recursive xRFC parameter. For a

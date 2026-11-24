@@ -314,7 +314,7 @@ func coerceGraphTable(g metadata.Graph, node metadata.TypeNode, v any, depth int
 	for i, row := range rows {
 		cv, err := coerceGraphLine(g, node, row, depth+1)
 		if err != nil {
-			return nil, fmt.Errorf("row %d: %v", i, err)
+			return nil, fmt.Errorf("row %d: %w", i, err)
 		}
 		out = append(out, cv)
 	}
@@ -336,7 +336,7 @@ func coerceGraphStructure(g metadata.Graph, node metadata.TypeNode, v any, depth
 	}
 	m, ok := v.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("expects an object")
+		return nil, fmt.Errorf("%w: expects an object", ErrInvalidParameter)
 	}
 	byName := make(map[string]metadata.MetadataField, len(node.Fields))
 	for _, f := range node.Fields {
@@ -353,7 +353,7 @@ func coerceGraphStructure(g metadata.Graph, node metadata.TypeNode, v any, depth
 		}
 		cv, err := coerceGraphReference(g, f, val, depth+1)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %v", k, err)
+			return nil, fmt.Errorf("%s: %w", k, err)
 		}
 		out[k] = cv
 	}

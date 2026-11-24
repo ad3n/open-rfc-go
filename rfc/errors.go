@@ -18,23 +18,31 @@ import (
 // an ABAP failure is an *ABAPException, matched with errors.As.
 var (
 	// ErrClosed reports use of a client or session that has been closed.
-	ErrClosed = errors.New("rfc: closed")
+	ErrClosed error = codedError{"rfc: closed", "RFC_CLOSED"}
 	// ErrNotAuthenticated reports a call before a successful logon.
-	ErrNotAuthenticated = errors.New("rfc: not authenticated")
+	ErrNotAuthenticated error = codedError{"rfc: not authenticated", "RFC_LOGON_FAILURE"}
 	// ErrLogonRejected reports that the system refused the logon credentials.
-	ErrLogonRejected = errors.New("rfc: logon rejected")
+	ErrLogonRejected error = codedError{"rfc: logon rejected", "RFC_LOGON_FAILURE"}
 	// ErrProtocol reports a malformed or unexpected server exchange.
 	ErrProtocol = errors.New("rfc: protocol error")
 	// ErrTransport reports a connection-level failure.
-	ErrTransport = errors.New("rfc: transport error")
+	ErrTransport error = codedError{"rfc: transport error", "RFC_COMMUNICATION_FAILURE"}
 	// ErrUnknownParameter reports a parameter absent from the function interface.
-	ErrUnknownParameter = errors.New("rfc: unknown parameter")
+	ErrUnknownParameter error = codedError{"rfc: unknown parameter", "RFC_INVALID_PARAMETER"}
+	// ErrInvalidParameter reports input that cannot be represented by its RFC type.
+	ErrInvalidParameter error = codedError{"rfc: invalid parameter", "RFC_INVALID_PARAMETER"}
 	// ErrPoolExhausted reports that no pooled connection became available before
 	// the acquire deadline.
-	ErrPoolExhausted = errors.New("rfc: connection pool exhausted")
+	ErrPoolExhausted error = codedError{"rfc: connection pool exhausted", "RFC_TIMEOUT"}
 	// ErrTimeout reports that the context deadline elapsed.
-	ErrTimeout = errors.New("rfc: timeout")
+	ErrTimeout error = codedError{"rfc: timeout", "RFC_TIMEOUT"}
 )
+
+type codedError struct{ text, code string }
+
+func (e codedError) Error() string { return e.text }
+
+func (e codedError) RFCErrorCode() string { return e.code }
 
 // translate maps an internal package's sentinel onto the public taxonomy so
 // callers can match with errors.Is against this package's errors alone. The
@@ -102,6 +110,21 @@ func (e *ABAPException) Error() string {
 		fmt.Fprintf(&b, ": %s", e.RuntimeID)
 	}
 	return b.String()
+}
+
+func (e *ABAPException) RFCErrorCode() string {
+	switch e.Kind {
+	case KindRuntime:
+		return "RFC_ABAP_RUNTIME_FAILURE"
+	case KindMessage:
+		return "RFC_ABAP_MESSAGE"
+	default:
+		return "RFC_ABAP_EXCEPTION"
+	}
+}
+
+func (e *ABAPException) RFCErrorABAP() (key, class, kind, number string) {
+	return e.Key, e.MessageClass, e.MessageType, e.MessageNumber
 }
 
 func kindFromOutcome(o rfcerr.Outcome) ExceptionKind {

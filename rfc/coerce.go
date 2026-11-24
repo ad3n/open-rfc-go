@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/ad3n/open-rfc-go/internal/classicrfc"
@@ -37,14 +38,14 @@ func coerceParams(iface metadata.RfcFunctionInterface, in Params, resolve struct
 			}
 			cv, err := coerceGraphParam(plan.graph, rp, val)
 			if err != nil {
-				return nil, fmt.Errorf("%w: %s: %v", ErrProtocol, name, err)
+				return nil, fmt.Errorf("%w: %s: %w", ErrProtocol, name, err)
 			}
 			out[name] = cv
 			continue
 		}
 		cv, err := coerceParamValue(p, val, resolve)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %s: %v", ErrProtocol, name, err)
+			return nil, fmt.Errorf("%w: %s: %w", ErrProtocol, name, err)
 		}
 		out[name] = cv
 	}
@@ -71,7 +72,7 @@ func coerceParamValue(p classicrfc.FunintParameter, val any, resolve structResol
 		for i, r := range rows {
 			m, err := coerceStruct(def, r, resolve)
 			if err != nil {
-				return nil, fmt.Errorf("row %d: %v", i, err)
+				return nil, fmt.Errorf("row %d: %w", i, err)
 			}
 			out = append(out, m)
 		}
@@ -89,7 +90,7 @@ func coerceParamValue(p classicrfc.FunintParameter, val any, resolve structResol
 func coerceStruct(def rfctypes.RfcStructureDefinition, val any, resolve structResolver) (map[string]any, error) {
 	m, ok := val.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("expects an object")
+		return nil, fmt.Errorf("%w: expects an object", ErrInvalidParameter)
 	}
 	byField := make(map[string]rfctypes.RfcStructureField, len(def.Fields))
 	for _, f := range def.Fields {
@@ -104,7 +105,7 @@ func coerceStruct(def rfctypes.RfcStructureDefinition, val any, resolve structRe
 		}
 		cv, err := coerceScalar(f.Exid, v)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %v", k, err)
+			return nil, fmt.Errorf("%s: %w", k, err)
 		}
 		out[k] = cv
 	}
@@ -118,13 +119,28 @@ func coerceScalar(exid string, v any) (any, error) {
 	case "I", "s", "b", "8":
 		n, ok := toInt64(v)
 		if !ok {
-			return nil, fmt.Errorf("expects an integer")
+			return nil, fmt.Errorf("%w: expects an integer", ErrInvalidParameter)
 		}
+
+		minimum, maximum := int64(math.MinInt64), int64(math.MaxInt64)
+		switch exid {
+		case "I":
+			minimum, maximum = math.MinInt32, math.MaxInt32
+		case "s":
+			minimum, maximum = math.MinInt16, math.MaxInt16
+		case "b":
+			minimum, maximum = 0, math.MaxUint8
+		}
+
+		if n < minimum || n > maximum {
+			return nil, fmt.Errorf("%w: integer outside %d..%d", ErrInvalidParameter, minimum, maximum)
+		}
+
 		return n, nil
 	case "F", "a", "e":
 		f, ok := toFloat64(v)
 		if !ok {
-			return nil, fmt.Errorf("expects a number")
+			return nil, fmt.Errorf("%w: expects a number", ErrInvalidParameter)
 		}
 		return f, nil
 	case "P":
@@ -145,11 +161,11 @@ func coerceScalar(exid string, v any) (any, error) {
 		case string:
 			b, err := base64.StdEncoding.DecodeString(t)
 			if err != nil {
-				return nil, fmt.Errorf("expects base64 for RAW/XSTRING: %v", err)
+				return nil, fmt.Errorf("%w: expects base64 for RAW/XSTRING: %v", ErrInvalidParameter, err)
 			}
 			return b, nil
 		}
-		return nil, fmt.Errorf("expects base64 string or bytes")
+		return nil, fmt.Errorf("%w: expects base64 string or bytes", ErrInvalidParameter)
 	}
 	// character-like (C, N, g, D, T, p, ...) — keep as string
 	if s, ok := v.(string); ok {
@@ -173,6 +189,10 @@ func toInt64(v any) (int64, bool) {
 	case int64:
 		return n, true
 	case float64:
+		if n < -0x1p63 || n >= 0x1p63 || n != math.Trunc(n) {
+			return 0, false
+		}
+
 		return int64(n), true
 	}
 	return 0, false
@@ -204,5 +224,5 @@ func asSlice(v any) ([]any, error) {
 		}
 		return out, nil
 	}
-	return nil, fmt.Errorf("expects an array")
+	return nil, fmt.Errorf("%w: expects an array", ErrInvalidParameter)
 }

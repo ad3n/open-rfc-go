@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/ad3n/open-rfc-go/internal/classicrfc"
@@ -31,6 +32,13 @@ type Result struct {
 	tables  map[string][]map[string]any
 }
 
+type callResponse struct {
+	resolve structResolver
+	plan    *layoutPlan
+	iface   metadata.RfcFunctionInterface
+	fields  []cpic.Field
+}
+
 // Get returns a scalar or structure export (nil if absent). A structure is a
 // map[string]any.
 func (r Result) Get(name string) any { return r.scalars[name] }
@@ -45,6 +53,10 @@ func (r Result) Has(name string) bool { _, ok := r.scalars[name]; return ok }
 // scalars and structures (structures as nested objects), plus table exports as
 // arrays. Byte values (RAW/XSTRING) marshal as base64, per encoding/json.
 func (r Result) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.Values())
+}
+
+func (r Result) Values() map[string]any {
 	out := make(map[string]any, len(r.scalars)+len(r.tables))
 	for k, v := range r.scalars {
 		out[k] = v
@@ -52,7 +64,7 @@ func (r Result) MarshalJSON() ([]byte, error) {
 	for k, v := range r.tables {
 		out[k] = v
 	}
-	return json.Marshal(out)
+	return out
 }
 
 // structResolver resolves a DDIC structure definition by name.
@@ -75,12 +87,19 @@ func (c *Client) Call(ctx context.Context, functionName string, in Params) (Resu
 	return res, err
 }
 
-// callOn runs one call on a specific session: resolve the interface, coerce and
-// encode the inputs, exchange (servicing any callbacks), then decode.
 func (c *Client) callOn(ctx context.Context, sess *lifecycle.Managed, functionName string, in Params) (Result, error) {
-	iface, err := c.functionInterfaceOn(ctx, sess, functionName)
+	response, err := c.exchangeCall(ctx, sess, functionName, in)
 	if err != nil {
 		return Result{}, err
+	}
+
+	return decodeResult(response.iface, response.fields, response.resolve, response.plan)
+}
+
+func (c *Client) exchangeCall(ctx context.Context, sess *lifecycle.Managed, functionName string, in Params) (callResponse, error) {
+	iface, err := c.functionInterfaceOn(ctx, sess, functionName)
+	if err != nil {
+		return callResponse{}, err
 	}
 	resolve := func(name string) (rfctypes.RfcStructureDefinition, error) {
 		return c.structureDefinitionOn(ctx, sess, name)
@@ -92,24 +111,24 @@ func (c *Client) callOn(ctx context.Context, sess *lifecycle.Managed, functionNa
 	plan := c.planLayoutOn(ctx, sess, iface, resolve)
 	in, err = coerceParams(iface, in, resolve, plan)
 	if err != nil {
-		return Result{}, err
+		return callResponse{}, err
 	}
 	input, err := encodeCall(iface, in, resolve, plan)
 	if err != nil {
-		return Result{}, err
+		return callResponse{}, err
 	}
 	req, err := cpic.EncodeCutFunctionRequest(input)
 	if err != nil {
-		return Result{}, fmt.Errorf("%w: %v", ErrProtocol, err)
+		return callResponse{}, fmt.Errorf("%w: %v", ErrProtocol, err)
 	}
 	res, err := sess.CallWithCallbacks(ctx, req, c.callbackHandler(ctx))
 	if err != nil {
-		return Result{}, fmt.Errorf("%w: %v", ErrTransport, err)
+		return callResponse{}, fmt.Errorf("%w: %w", ErrTransport, err)
 	}
 	if exc := exceptionFromEnvelope(res.Envelope); exc != nil {
-		return Result{}, exc
+		return callResponse{}, exc
 	}
-	return decodeResult(iface, res.Fields, resolve, plan)
+	return callResponse{iface: iface, fields: res.Fields, resolve: resolve, plan: plan}, nil
 }
 
 func indexParams(iface metadata.RfcFunctionInterface) map[string]classicrfc.FunintParameter {
@@ -274,10 +293,11 @@ func encodeScalar(p classicrfc.FunintParameter, val any) ([]byte, error) {
 		}
 		return classicrfc.EncodeAbapChar(strings.Repeat("0", n-len(s))+s, n)
 	case "I":
-		v, ok := asInt32(val)
-		if !ok {
-			return nil, fmt.Errorf("%w: %s expects an integer", ErrProtocol, p.ParameterName)
+		v, ok := toInt64(val)
+		if !ok || v < math.MinInt32 || v > math.MaxInt32 {
+			return nil, fmt.Errorf("%w: %s: %w: expected a signed 32-bit integer", ErrProtocol, p.ParameterName, ErrInvalidParameter)
 		}
+
 		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, uint32(v))
 		return b, nil
@@ -508,19 +528,6 @@ func decodeScalar(p classicrfc.FunintParameter, b []byte) (any, error) {
 			return append([]byte(nil), b...), nil
 		}
 		return m["V"], nil
-	}
-}
-
-func asInt32(v any) (int32, bool) {
-	switch n := v.(type) {
-	case int:
-		return int32(n), true
-	case int32:
-		return n, true
-	case int64:
-		return int32(n), true
-	default:
-		return 0, false
 	}
 }
 

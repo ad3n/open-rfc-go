@@ -115,8 +115,8 @@ func EncodeInitialLogonRequest(input InitialLogonRequestInput) ([]byte, error) {
 	if !digits3.MatchString(input.Client) {
 		return nil, fmt.Errorf("%w: client must contain exactly three ASCII digits", ErrRange)
 	}
-	if !oneLetter.MatchString(input.Language) {
-		return nil, fmt.Errorf("%w: language must contain one ASCII letter", ErrRange)
+	if !sapLanguageKey.MatchString(input.Language) {
+		return nil, fmt.Errorf("%w: language must contain one ASCII letter or digit", ErrRange)
 	}
 	kernelRelease := input.KernelRelease
 	if kernelRelease == "" {

@@ -37,6 +37,9 @@ git -C ../open-rfc log --oneline 847036d..origin/main -- src/protocol/ni.ts
 
 | open-rfc file | open-rfc commit | open-rfc-go file | Modifications |
 |---|---|---|---|
+| `src/protocol/message-server.ts` | `847036d` | `internal/msgserver/protocol.go` | Ports the bounded NI login, RFC group lookup, target derivation and one-way logout. |
+| `src/transport/message-server-resolver.ts` | `847036d` | `internal/msgserver/resolve.go` | Uses the Go TCP service resolver and existing NI transport. Context cancellation closes the transport, and one deadline bounds the exchange. |
+| `test/message-server.test.ts`, `test/message-server-resolver.test.ts` | `847036d` | `internal/msgserver/protocol_test.go`, `internal/msgserver/resolve_test.go` | Ports protocol fixtures, malformed replies, and loopback exchange bounds. Node transport injection and custom service-table parsing cases do not apply to the standard Go resolver. Adds fuzz and buffer ownership checks. |
 | `src/protocol/ni.ts` | `847036d` | `internal/ni/frame.go` | Rewritten in Go. `Buffer` → `[]byte`; thrown `RangeError`/`Error` → returned wrapped sentinel errors; `#private` fields → unexported fields; the `bytes.ts` typed-array intrinsic guards are dropped as inapplicable (see below). |
 | `test/ni.test.ts` | `847036d` | `internal/ni/frame_test.go` | Rewritten for `testing`. One upstream case has no Go analogue (see below); three Go-specific cases added for slice aliasing and a fuzz target. |
 | `test/protocol-property.test.ts` (NI cases only) | `847036d` | `internal/ni/property_test.go` | Rewritten for `testing`. Upstream's hand-rolled `DeterministicRandom` → `math/rand/v2` PCG with a fixed seed, so the sequences differ while the invariant asserted is the same. |

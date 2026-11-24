@@ -4,6 +4,7 @@ package rfc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -232,6 +233,11 @@ func TestCoerceGraphParamRejectsBadShape(t *testing.T) {
 	}
 	if _, err := coerceGraphParam(g, rp, map[string]any{"ROWS": "not an array"}); err == nil {
 		t.Fatal("a nested table must reject a string")
+	}
+
+	value := map[string]any{"ROWS": []any{map[string]any{"N": json.Number("2147483648")}}}
+	if _, err := coerceGraphParam(g, rp, value); !errors.Is(err, ErrInvalidParameter) {
+		t.Fatalf("nested overflow: got %v, want invalid parameter", err)
 	}
 }
 

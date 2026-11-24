@@ -4,7 +4,9 @@ package rfc
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/ad3n/open-rfc-go/internal/classicrfc"
@@ -69,6 +71,39 @@ func TestEncodeScalarBytes(t *testing.T) {
 	}
 	if !bytes.Equal(got.([]byte), []byte{0xaa, 0, 0}) {
 		t.Fatalf("X decode = % x", got)
+	}
+}
+
+func TestINT32InputBounds(t *testing.T) {
+	p := param("VALUE", "I", "I", "", 4)
+	iface := metadata.RfcFunctionInterface{Parameters: []classicrfc.FunintParameter{p}}
+	for _, value := range []any{int64(math.MinInt32) - 1, int64(math.MaxInt32) + 1, json.Number("2147483648"), json.Number("1.5"), 1.5, 0x1p63} {
+		_, err := coerceParams(iface, Params{"VALUE": value}, zsResolver, nil)
+		if !errors.Is(err, ErrInvalidParameter) || !errors.Is(err, ErrProtocol) {
+			t.Fatalf("coerce %v: got %v, want invalid parameter", value, err)
+		}
+
+		_, err = encodeScalar(p, value)
+		if !errors.Is(err, ErrInvalidParameter) {
+			t.Fatalf("encode %v: got %v, want invalid parameter", value, err)
+		}
+	}
+
+	for _, value := range []int32{math.MinInt32, math.MaxInt32} {
+		input, err := coerceParams(iface, Params{"VALUE": int64(value)}, zsResolver, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		data, err := encodeScalar(p, input["VALUE"])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		decoded, err := decodeScalar(p, data)
+		if err != nil || decoded != value {
+			t.Fatalf("round-trip %d: got %v, %v", value, decoded, err)
+		}
 	}
 }
 

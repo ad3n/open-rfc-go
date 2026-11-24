@@ -298,16 +298,16 @@ func preflightTableBytes(fields []cpic.Field) error {
 // DecodeResult groups a decoded function response into lossless scalar/table
 // wire values. Unknown application records are rejected.
 func DecodeResult(fields []cpic.Field) (Result, error) {
-	return decodeResult(fields, false)
+	return decodeResult(fields, false, nil)
 }
 
 // DecodeOwnedResult decodes values already owned by the current CPIC session
 // without a second snapshot; returned buffers may alias fields.
 func DecodeOwnedResult(fields []cpic.Field) (Result, error) {
-	return decodeResult(fields, true)
+	return decodeResult(fields, true, nil)
 }
 
-func decodeResult(fields []cpic.Field, borrow bool) (Result, error) {
+func decodeResult(fields []cpic.Field, borrow bool, selected *TableView) (Result, error) {
 	var zero Result
 	if err := preflightResultBytes(fields); err != nil {
 		return zero, err
@@ -383,6 +383,11 @@ func decodeResult(fields []cpic.Field, borrow bool) (Result, error) {
 				return zero, fmt.Errorf("%w: classic RFC response contains duplicate parameter %s", ErrProtocol, name)
 			}
 			names[name] = true
+			if selected != nil {
+				index++
+				continue
+			}
+
 			result.Scalars = append(result.Scalars, Scalar{Name: name, Value: retainedWireBuffer(fields[index+1].Value, borrow)})
 			index++
 		case uint16(cpic.TagTableName):
@@ -400,6 +405,18 @@ func decodeResult(fields []cpic.Field, borrow bool) (Result, error) {
 			if err != nil {
 				return zero, err
 			}
+			if selected != nil {
+				end := index + 2 + int(header.RowCount)
+				if name == selected.name {
+					selected.fields = fields[index+2 : end]
+					selected.width = header.DeclaredRowByteLength
+					selected.Found = true
+				}
+
+				index = end - 1
+				continue
+			}
+
 			var rows [][]byte
 			sawUncompressed, sawSimpleCompressed := false, false
 			rowByteLength := int(header.DeclaredRowByteLength)
@@ -468,6 +485,22 @@ func decodeResult(fields []cpic.Field, borrow bool) (Result, error) {
 			if err != nil {
 				return zero, err
 			}
+			if selected != nil {
+				end := index + 2
+				for end < len(fields) && end-(index+2) < int(header.RowCount) &&
+					(fields[end].Tag == uint16(cpic.TagTableContent) || fields[end].Tag == uint16(cpic.TagTableCompr)) {
+					end++
+				}
+
+				if end-(index+2) != int(header.RowCount) {
+					return zero, fmt.Errorf("%w: incomplete positional table %s", ErrProtocol, name)
+				}
+
+				selected.Positional = true
+				index = end - 1
+				continue
+			}
+
 			var rows [][]byte
 			sawUncompressed, sawSimpleCompressed := false, false
 			rowByteLength := int(header.DeclaredRowByteLength)
@@ -525,6 +558,12 @@ func decodeResult(fields []cpic.Field, borrow bool) (Result, error) {
 				}
 				width = len(data) / count
 			}
+			if selected != nil {
+				selected.Positional = true
+				index++
+				continue
+			}
+
 			var rows [][]byte
 			for r := 0; r < count; r++ {
 				rows = append(rows, retainedWireBuffer(data[r*width:(r+1)*width], borrow))

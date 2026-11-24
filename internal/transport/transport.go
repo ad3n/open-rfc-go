@@ -117,9 +117,10 @@ func DialWith(ctx context.Context, network, addr string, opts DialOptions) (*Tra
 func New(conn net.Conn, opts Options) *Transport {
 	maxPayload := opts.maxPayload()
 	dec, _ := ni.NewFrameDecoder(maxPayload)
+	const lengthPrefixSize = 4
 	readSize := 32 * 1024
-	if maxPayload < readSize-4 {
-		readSize = maxPayload + 4
+	if maxPayload < readSize-lengthPrefixSize {
+		readSize = maxPayload + lengthPrefixSize
 	}
 
 	return &Transport{conn: conn, dec: dec, chunk: make([]byte, readSize), opts: opts}

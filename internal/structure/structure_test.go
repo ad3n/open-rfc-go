@@ -168,3 +168,44 @@ func FuzzDecodeStructure(f *testing.F) {
 		_, _ = Decode(def, data)
 	})
 }
+
+func TestFixedCodecOwnsDefinitionAndDecodedRows(t *testing.T) {
+	def := flatDef()
+	codec, err := NewFixedCodec(def)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	def.Fields[2].FieldName = "CHANGED"
+	input := map[string]any{"COUNT": int32(-42), "RAW": []byte{1, 2, 3, 4}}
+	wire, err := codec.Encode(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := codec.Decode(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := codec.Decode(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clear(wire)
+	first["RAW"].([]byte)[0] = 99
+	if second["COUNT"] != int32(-42) || !bytes.Equal(second["RAW"].([]byte), []byte{1, 2, 3, 4}) {
+		t.Fatalf("decoded row was overwritten: %#v", second)
+	}
+}
+
+func TestFixedCodecRejectsOverflowingWidth(t *testing.T) {
+	def := rfctypes.RfcStructureDefinition{
+		Name: "ZTEST", ByteLength: 8,
+		Fields: []rfctypes.RfcStructureField{fld("RAW", "X", 1, 4, 1<<31-1, 0)},
+	}
+	if _, err := NewFixedCodec(def); !errors.Is(err, ErrStructure) {
+		t.Fatalf("overflowing field geometry: %v", err)
+	}
+}

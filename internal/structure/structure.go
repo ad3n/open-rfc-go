@@ -41,9 +41,9 @@ var ErrStructure = errors.New("structure: classic structure")
 var numericDigits = regexp.MustCompile(`^\d*$`)
 
 type FixedCodec struct {
-	def   rfctypes.RfcStructureDefinition
-	paths []string
 	names map[string]bool
+	paths []string
+	def   rfctypes.RfcStructureDefinition
 }
 
 // SnapshotDefinition validates fixed-structure geometry before value allocation.
@@ -157,20 +157,6 @@ func ValidateCodec(def rfctypes.RfcStructureDefinition, requestedName string) (r
 		}
 	}
 	return normalized, nil
-}
-
-// HasDynamicFields reports whether the structure needs the xRFC XML serializer.
-func HasDynamicFields(def rfctypes.RfcStructureDefinition) (bool, error) {
-	normalized, err := ValidateCodec(def, "")
-	if err != nil {
-		return false, err
-	}
-	for _, field := range normalized.Fields {
-		if field.Exid == "g" || field.Exid == "y" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func NewFixedCodec(def rfctypes.RfcStructureDefinition) (FixedCodec, error) {
@@ -523,23 +509,23 @@ func (c FixedCodec) Encode(input map[string]any) ([]byte, error) {
 	return result, nil
 }
 
-func Decode(def rfctypes.RfcStructureDefinition, bytes []byte) (map[string]any, error) {
+func Decode(def rfctypes.RfcStructureDefinition, src []byte) (map[string]any, error) {
 	codec, err := NewFixedCodec(def)
 	if err != nil {
 		return nil, err
 	}
 
-	return codec.Decode(bytes)
+	return codec.Decode(src)
 }
 
-func (c FixedCodec) Decode(bytes []byte) (map[string]any, error) {
-	if len(bytes) != int(c.def.ByteLength) {
-		return nil, fmt.Errorf("%w: %s structure must contain exactly %d bytes; received %d", ErrStructure, c.def.Name, c.def.ByteLength, len(bytes))
+func (c FixedCodec) Decode(src []byte) (map[string]any, error) {
+	if len(src) != int(c.def.ByteLength) {
+		return nil, fmt.Errorf("%w: %s structure must contain exactly %d bytes; received %d", ErrStructure, c.def.Name, c.def.ByteLength, len(src))
 	}
 
 	result := make(map[string]any, len(c.def.Fields))
 	for i, field := range c.def.Fields {
-		v, err := readValue(bytes, field, c.paths[i])
+		v, err := readValue(src, field, c.paths[i])
 		if err != nil {
 			return nil, err
 		}

@@ -159,6 +159,20 @@ func ValidateCodec(def rfctypes.RfcStructureDefinition, requestedName string) (r
 	return normalized, nil
 }
 
+// HasDynamicFields reports whether the structure needs the xRFC XML serializer.
+func HasDynamicFields(def rfctypes.RfcStructureDefinition) (bool, error) {
+	normalized, err := ValidateCodec(def, "")
+	if err != nil {
+		return false, err
+	}
+	for _, field := range normalized.Fields {
+		if field.Exid == "g" || field.Exid == "y" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func NewFixedCodec(def rfctypes.RfcStructureDefinition) (FixedCodec, error) {
 	normalized, err := SnapshotDefinition(def, "")
 	if err != nil {
